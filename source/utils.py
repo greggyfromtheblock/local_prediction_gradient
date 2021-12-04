@@ -40,7 +40,8 @@ def log_global_importance(trainer, dataframe, name='', experiment_name='', n=0, 
 
     dataframe.to_csv(f'/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/cor/{experiment_name}/global/{name}-{experiment_name}-n{n}-{seed}.csv')
 
-def sample_from_population(n=100, mu=0, sd=1, r=0):
+
+def sample_from_population(n:int = 100, mu: float = 0, sd: float = 1, r: float =0):
     """
     :param n: number of samples
     :param mu: scale parameter
@@ -64,10 +65,16 @@ def sample_from_population(n=100, mu=0, sd=1, r=0):
     return dict(mu=sample_mu, sd=sample_sd, r=sample_r)
 
 
-def create_correlated_var(x, mu=0.0, sd=1.0, r=0.9, empirical=False):
+def create_correlated_var(x: np.ndarray,
+                          rnorm_vector: np.ndarray,
+                          mu: float = 0.0,
+                          sd: float = 1.0,
+                          r: float = 0.9,
+                          empirical: bool = False):
     """
     Creates a random normally distributed array with the specified correlati`on
     :param x: existing array to correlate to
+    :param rnorm_vector: random normal vector to transform the result to
     :param mu: desired mean of the returned array
     :param sd: desired stdev of the returned vector
     :param r: desired correlation between existing and returned vectors
@@ -81,7 +88,6 @@ def create_correlated_var(x, mu=0.0, sd=1.0, r=0.9, empirical=False):
         r = sample_params['r']
 
     x = scale(x)
-    y = np.random.normal(size=n)
-    e = stats.OLS(y, x).fit().resid
+    e = stats.OLS(rnorm_vector, x).fit().resid
     z = r * scale(x) + np.sqrt(1-r**2) * scale(e)
     return mu + sd * z
