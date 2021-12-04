@@ -13,39 +13,33 @@ from captum.attr import *
 from captum.metrics import *
 from captum._utils.models.linear_model import SkLearnLinearRegression
 
-from medical_interpretability.source.wrappers import PredictRiskWrapper, ForwardWrapper
+from source.wrappers import PredictRiskWrapper, ForwardWrapper
 
-from riskiano.source.utils.general import attribution2df
-from riskiano.source.evaluation.tabular import *
-from riskiano.source.tasks.survival import DeepSurvivalMachine, DeepSurv
+from source.tasks import DeepSurv
+
+import wandb
 
 
 
 class FeatureAttribution(Callback):
     def __init__(self,
-                 baseline_method='zeros',
-                 compute_sens=False,
-                 compute_inf=False,
-                 experiment_name='',
-                 n=0,
-                 seed=0,
+                 project,
+                 baseline_method = 'zeros',
+                 experiment_name = '',
+                 seed = 0,
                  **kwargs):
         super().__init__()
         """
         Runs attribution methods at the end of fit
-        :param experiment_name: foler name to save the attributions at + name to id the attribution
-        :param n: number of extra correlated variable on the training (for simulation experiment)
+        :param project: project for the attribution [correlation, simpsons]
+        :param experiment_name: folder name to save the attributions at + name to id the attribution
         :param seed: seed number of the training (for simulation experiment)
         :param baseline_method: baseline to choose from when computing attributions ['zeros', 'ones', 'average']
-        :pram compute_sens: wether to compute sensitivity max (this takes gazillion years to run)
         """
+        self.project = project
         self.baseline_method = baseline_method
-        self.compute_sens = compute_sens
         self.experiment_name = experiment_name
-        self.n = n
         self.seed = seed
-        self.compute_inf = compute_inf
-
 
 
     def on_fit_end(self, trainer, pl_module, device='cuda:0', t=torch.tensor([11.0]), eval_batch_size=None):
@@ -72,23 +66,9 @@ class FeatureAttribution(Callback):
                                              shuffle=True,
                                              drop_last=False)
 
-        # Get a batch from dataloader
-        valid_batch = next(iter(valid_loader))
-        train_batch = next(iter(train_loader))
-
         # Unpack batch
-        valid_data, *_ = task.unpack_batch(valid_batch)
-        train_data, *_ = task.unpack_batch(train_batch)
-
-        # Wrapper for the model that returns F(t) from the forward pass
-        if isinstance(task, DeepSurvivalMachine):
-            def wrapped_model(inp, t):
-                return task(inp, t)[1].squeeze(0)
-        elif isinstance(task, DeepSurv):
-            def wrapped_model(inp, t):
-                return task.predict_risk(inp, t)
-        else:
-            raise NotImplementedError('FeatureAttribution currently only supports DeepSurvivalMachine and DeepSurv')
+        valid_data, *_ = task.unpack_batch(next(iter(valid_loader)))
+        train_data, *_ = task.unpack_batch(next(iter(train_loader)))
 
         t = torch.tensor([trainer.datamodule.eval_timepoint])
         t_repeat = torch.tensor([trainer.datamodule.eval_timepoint]).repeat([task.batch_size, 1])
@@ -105,66 +85,53 @@ class FeatureAttribution(Callback):
             noise = torch.tensor(np.random.normal(0.001, 0.0001, inputs.shape)).float()
             return noise, inputs - noise
 
-        outpath = "/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/cor"
+        if self.project == 'correlation':
+            outpath = "/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/correlation_case"
+        else:
+            outpath ="/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/simpsons_case"
 
         if not os.path.exists(f'{outpath}/{self.experiment_name}'):
             os.mkdir(f'{outpath}/{self.experiment_name}')
 
         # KernelExplainer
-        wrapped_task = ForwardShapWrapper(task, method='KernelExplainer')
+        wrapped_task = ForwardWrapper(task, method='KernelExplainer')
         baseline = torch.zeros(1, valid_data.shape[1])
         explainer = shapley.KernelExplainer(wrapped_task, baseline)
         kernel_explainer_attr = explainer.shap_values(valid_data.numpy())
         kernel_explainer_attr = kernel_explainer_attr[0] if isinstance(kernel_explainer_attr, list) else kernel_explainer_attr
         expected_value_kernel = explainer.expected_value
-        np.savetxt(f'{outpath}/{self.experiment_name}/KernelExplainer_{self.seed}_n{self.n}.csv',
+
+        np.savetxt(f'{outpath}/{self.experiment_name}/KernelExplainer_{self.seed}.csv',
                    kernel_explainer_attr, delimiter=',', fmt="%s")
-        np.savetxt(f'{outpath}/{self.experiment_name}/KernelExplainer_{self.seed}_expected-value_n{self.n}.csv',
+        np.savetxt(f'{outpath}/{self.experiment_name}/KernelExplainer_{self.seed}_expected-value.csv',
                    expected_value_kernel, delimiter=',', fmt="%s")
-        kernel_df = attribution2df(kernel_explainer_attr, feature_names, valid_data)
-        log_global_importance(trainer, kernel_df, name="KernelSHAP",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
-        print(f'saved {outpath}/{self.experiment_name}/KernelExplainer_{self.seed}_n{self.n}.csv')
+        wandb.config.update(dict(KernelExplainer_path=f'{outpath}/{self.experiment_name}/KernelExplainer_{self.seed}.csv'))
 
         # DeepExplainer
-        wrapped_task = ForwardShapWrapper(task, method='DeepExplainer')
+        wrapped_task = ForwardWrapper(task, method='DeepExplainer')
         baseline = torch.zeros(1, valid_data.shape[1])
         explainer = shapley.DeepExplainer(wrapped_task, baseline)
         deep_explainer_attr = explainer.shap_values(valid_data)
         expected_value_deep = explainer.expected_value
-        np.savetxt(f'{outpath}/{self.experiment_name}/DeepExplainer_{self.seed}_n{self.n}.csv',
+
+        np.savetxt(f'{outpath}/{self.experiment_name}/DeepExplainer_{self.seed}.csv',
                    deep_explainer_attr, delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/DeepExplainer_{self.seed}_expected-value.csv',
                    expected_value_deep, delimiter=',', fmt="%s")
-        print(f'saved {outpath}/{self.experiment_name}/DeepExplainer_{self.seed}_n{self.n}.csv')
-        deep_explainer_df = attribution2df(deep_explainer_attr, feature_names, valid_data)
-        log_global_importance(trainer, deep_explainer_df, name="DeepSHAP",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        wandb.config.update(dict(DeepExplainer_path=f'{outpath}/{self.experiment_name}/DeepExplainer_{self.seed}.csv'))
 
         # Feature Ablation
-        wrapped_model = ForwardShapWrapper(task, method='FeatureAblation')
+        wrapped_model = ForwardWrapper(task, method='FeatureAblation')
         fa = FeatureAblation(wrapped_model)
         fa_attr = fa.attribute(valid_data, additional_forward_args=t, baselines=baseline)
-        print(f'saved {outpath}/{self.experiment_name}/FeatureAblation_{self.seed}.csv')
-        fa_df = attribution2df(fa_attr, feature_names, valid_data)
-        log_global_importance(trainer, fa_df, name="FeatureAblation",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/FeatureAblation{self.seed}.csv', fa_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(FeatureAblation_path=f'{outpath}/{self.experiment_name}/FeatureAblation_{self.seed}.csv'))
 
         # Feature Permutation
         fp = FeaturePermutation(wrapped_model)
         fp_attr = fp.attribute(valid_data, additional_forward_args=t)
-        np.savetxt(f'{outpath}/{self.experiment_name}/FeaturePermutation_{self.seed}_n{self.n}.csv', fp_attr.detach().numpy(), delimiter=',', fmt="%s")
-        fp_df = attribution2df(fp_attr, feature_names, valid_data)
-        log_global_importancse(trainer, fp_df, name="FeaturePermutation",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/FeaturePermutation_{self.seed}.csv', fp_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(FeaturePermutation_path=f'{outpath}/{self.experiment_name}/FeaturePermutation_{self.seed}.csv'))
 
         # Integrated Gradients
         ig = IntegratedGradients(wrapped_model)
@@ -174,42 +141,26 @@ class FeatureAttribution(Callback):
                                                additional_forward_args=t,
                                                internal_batch_size=task.batch_size,
                                                return_convergence_delta=True)
-        np.savetxt(f'{outpath}/{self.experiment_name}/IntegratedGradients_{self.seed}_n{self.n}.csv', ig_attr.detach().numpy(), delimiter=',', fmt="%s")
-        ig_df = attribution2df(ig_attr, feature_names, valid_data)
-        log_global_importance(trainer, ig_df, name="IntegratedGradients",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/IntegratedGradients_{self.seed}.csv', ig_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(IntegratedGradients_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_{self.seed}.csv'))
 
         # Shapley Value Sampling
         shap = ShapleyValueSampling(wrapped_model)
         shap_attr = shap.attribute(valid_data, additional_forward_args=t, baselines=baseline)
-        np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}_n{self.n}.csv', shap_attr.detach().numpy(), delimiter=',', fmt="%s")
-        shap_df = attribution2df(shap_attr, feature_names, valid_data)
-        log_global_importance(trainer, shap_df, name="ShapleyValueSampling",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}.csv', shap_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(ShapleyValueSampling_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}.csv'))
 
         # Input x Gradient
         ixg = InputXGradient(wrapped_model)
         ixg_attr = ixg.attribute(valid_data, additional_forward_args=t)
-        np.savetxt(f'{outpath}/{self.experiment_name}/InputxGradient_{self.seed}_n{self.n}.csv', ixg_attr.detach().numpy(), delimiter=',', fmt="%s")
-        ixg_df = attribution2df(ixg_attr, feature_names, valid_data)
-        log_global_importance(trainer, ixg_df, name="InputXGradient",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/InputxGradient_{self.seed}.csv', ixg_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(InputXGradient_path=f'{outpath}/{self.experiment_name}/InputxGradient_{self.seed}.csv'))
 
         # Saliency
         s = Saliency(wrapped_model)
         s_attr = s.attribute(valid_data, additional_forward_args=t)
-        np.savetxt(f'{outpath}/{self.experiment_name}/Saliency_{self.seed}_n{self.n}.csv', s_attr.detach().numpy(), delimiter=',', fmt="%s")
-        s_df = attribution2df(s_attr, feature_names, valid_data)
-        log_global_importance(trainer, s_df, name="Saliency",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/Saliency_{self.seed}.csv', s_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(Saliency_path=f'{outpath}/{self.experiment_name}/Saliency_{self.seed}.csv'))
 
         # Lime
         lime = Lime(wrapped_model,
@@ -217,9 +168,6 @@ class FeatureAttribution(Callback):
         lime_attr = lime.attribute(valid_data,
                                          n_samples=20,
                                          additional_forward_args=t)
-        np.savetxt(f'{outpath}/{self.experiment_name}/Lime{self.seed}_n{self.n}.csv', lime_attr.detach().numpy(), delimiter=',', fmt="%s")
-        lime_df = attribution2df(lime_attr, feature_names, valid_data)
-        log_global_importance(trainer, lime_df, name="Lime",
-                              experiment_name=self.experiment_name,
-                              n=self.n,
-                              seed=self.seed)
+        np.savetxt(f'{outpath}/{self.experiment_name}/Lime_{self.seed}.csv', lime_attr.detach().numpy(), delimiter=',', fmt="%s")
+        wandb.config.update(dict(Lime_path=f'{outpath}/{self.experiment_name}/Lime_{self.seed}.csv'))
+
