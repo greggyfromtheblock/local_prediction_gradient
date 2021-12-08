@@ -1,6 +1,6 @@
 import os
 import torch
-import shap_fork as shapley
+from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import pandas as pd
 import numpy as np
@@ -14,11 +14,42 @@ from captum.metrics import *
 from captum._utils.models.linear_model import SkLearnLinearRegression
 
 from source.wrappers import PredictRiskWrapper, ForwardWrapper
-
 from source.tasks import DeepSurv
+import shap_fork as shap_fork
 
 import wandb
 
+class CSVDataset(Dataset):
+    def __init__(self, name, project):
+        """
+        Dataset to read the attribution resampling csvs for the attribution experiments
+        :param name: csv id -> must end with _attribute
+        :param project: selection of correlation or simpson
+        """
+        self.path = '/data/analysis/ag-reils/ag-reils-shared/cardioRS/data/interpretability/correlation' if project == 'correlation' else '/data/analysis/ag-reils/ag-reils-shared/cardioRS/data/interpretability/simpson'
+        self.name = name
+        self.csv_path = f'{self.path}/{self.name}_attribute.csv'
+        self._read()
+
+        # cut columns
+        self.durations = self.data[['time']]
+        self.durations.columns = ['duration']
+        self.durations['duration'] = self.durations['duration'] + 1
+        self.events = self.data[['event']]
+        self.events.columns = ['event']
+        self.data.drop(['time', 'event'], axis=1, inplace=True)
+
+    def _read(self):
+        self.data = pd.read_csv(self.csv_path)
+
+    def __getitem__(self, idx):
+        data = torch.Tensor(self.data.values[idx, :])
+        duration = torch.Tensor(self,durations.values[idx])
+        event = torch.Tensor(self.events.values[idx])
+        return data, (duration, event)
+
+    def __len__(self):
+        return len(self.data)
 
 
 class FeatureAttribution(Callback):
@@ -42,7 +73,7 @@ class FeatureAttribution(Callback):
         self.seed = seed
 
 
-    def on_fit_end(self, trainer, pl_module, device='cuda:0', t=torch.tensor([11.0]), eval_batch_size=None):
+    def on_fit_end(self, trainer, pl_module, t=torch.tensor([11.0]), eval_batch_size=None):
         path = trainer.checkpoint_callback.best_model_path
 
         if isinstance(trainer.logger, list):
@@ -55,23 +86,13 @@ class FeatureAttribution(Callback):
 
         feature_names = trainer.datamodule.features
         eval_batch_size = len(trainer.datamodule.valid_ds)
-        train_loader = task.ext_dataloader(trainer.datamodule.train_ds,
-                                             batch_size=eval_batch_size,
-                                             num_workers=8,
-                                             shuffle=True,
-                                             drop_last=False)
-        valid_loader = task.ext_dataloader(trainer.datamodule.valid_ds,
-                                             batch_size=eval_batch_size,
-                                             num_workers=8,
-                                             shuffle=True,
-                                             drop_last=False)
+
+        csv_dataset = CSVDataset(self.experiment_name, project=self.project)
+        data_loader = DataLoader(csv_dataset, batch_size=len(csv_dataset))
 
         # Unpack batch
-        valid_data, *_ = task.unpack_batch(next(iter(valid_loader)))
-        train_data, *_ = task.unpack_batch(next(iter(train_loader)))
-
+        valid_data, *_ = task.unpack_batch(next(iter(data_loader)))
         t = torch.tensor([trainer.datamodule.eval_timepoint])
-        t_repeat = torch.tensor([trainer.datamodule.eval_timepoint]).repeat([task.batch_size, 1])
 
         if self.baseline_method == 'zeros':
             baseline = torch.zeros(valid_data.shape[0], valid_data.shape[1])
@@ -96,7 +117,7 @@ class FeatureAttribution(Callback):
         # KernelExplainer
         wrapped_task = ForwardWrapper(task, method='KernelExplainer')
         baseline = torch.zeros(1, valid_data.shape[1])
-        explainer = shapley.KernelExplainer(wrapped_task, baseline)
+        explainer = shap_fork.KernelExplainer(wrapped_task, baseline)
         kernel_explainer_attr = explainer.shap_values(valid_data.numpy())
         kernel_explainer_attr = kernel_explainer_attr[0] if isinstance(kernel_explainer_attr, list) else kernel_explainer_attr
         expected_value_kernel = explainer.expected_value
@@ -110,7 +131,7 @@ class FeatureAttribution(Callback):
         # DeepExplainer
         wrapped_task = ForwardWrapper(task, method='DeepExplainer')
         baseline = torch.zeros(1, valid_data.shape[1])
-        explainer = shapley.DeepExplainer(wrapped_task, baseline)
+        explainer = shap_fork.DeepExplainer(wrapped_task, baseline)
         deep_explainer_attr = explainer.shap_values(valid_data)
         expected_value_deep = explainer.expected_value
 
@@ -124,7 +145,7 @@ class FeatureAttribution(Callback):
         wrapped_model = ForwardWrapper(task, method='FeatureAblation')
         fa = FeatureAblation(wrapped_model)
         fa_attr = fa.attribute(valid_data, additional_forward_args=t, baselines=baseline)
-        np.savetxt(f'{outpath}/{self.experiment_name}/FeatureAblation{self.seed}.csv', fa_attr.detach().numpy(), delimiter=',', fmt="%s")
+        np.savetxt(f'{outpath}/{self.experiment_name}/FeatureAblation_{self.seed}.csv', fa_attr.detach().numpy(), delimiter=',', fmt="%s")
         wandb.config.update(dict(FeatureAblation_path=f'{outpath}/{self.experiment_name}/FeatureAblation_{self.seed}.csv'))
 
         # Feature Permutation
@@ -145,9 +166,9 @@ class FeatureAttribution(Callback):
         wandb.config.update(dict(IntegratedGradients_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_{self.seed}.csv'))
 
         # Shapley Value Sampling
-        shap = ShapleyValueSampling(wrapped_model)
-        shap_attr = shap.attribute(valid_data, additional_forward_args=t, baselines=baseline)
-        np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}.csv', shap_attr.detach().numpy(), delimiter=',', fmt="%s")
+        svs = ShapleyValueSampling(wrapped_model)
+        svs_attr = svs.attribute(valid_data, additional_forward_args=t, baselines=baseline)
+        np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}.csv', svs_attr.detach().numpy(), delimiter=',', fmt="%s")
         wandb.config.update(dict(ShapleyValueSampling_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_{self.seed}.csv'))
 
         # Input x Gradient
