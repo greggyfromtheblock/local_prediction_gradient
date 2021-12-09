@@ -14,6 +14,17 @@ from captum.attr import *
 from captum.metrics import *
 from captum._utils.models.linear_model import SkLearnLinearRegression
 
+class CsvDataset(Dataset):
+    def __init__(self, root, n_inp):
+        self.df = pd.read_csv(root)
+        self.data = self.df.to_numpy()
+        self.x , self.y = (torch.from_numpy(self.data[:, 0]),
+                           torch.from_numpy(self.data[:, 1]))
+    def __getitem__(self, idx):
+        return self.x[idx, :], self.y[idx,:]
+    def __len__(self):
+        return len(self.data)
+
 
 def feature_attribution(experiment_name, n, seed, baseline_method='zeros', compute_sens=False, comput_inf=False):
     """

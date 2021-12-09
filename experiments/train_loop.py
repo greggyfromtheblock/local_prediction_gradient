@@ -1,4 +1,4 @@
-print('beep beep bloo')
+print('pozdrawiam')
 
 import sys
 import os
@@ -8,7 +8,6 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, ReduceLROnPlat
 from omegaconf import DictConfig, OmegaConf
 
 from riskiano.source.callbacks.survival import *
-from riskiano.source.callbacks.attribution import *
 from riskiano.source.datamodules.simulations import *
 from riskiano.source.utils.general import *
 from riskiano.source.modules.general import *
@@ -21,7 +20,7 @@ warnings.filterwarnings("ignore", category=Warning)
 import pandas as pd
 pd.options.mode.use_inf_as_na = True
 # Specify config path
-config_path = "/home/ruyogagp/code/riskiano/riskiano/source/config"
+config_path = "/home/ruyogagp/medical_interpretability/source/config"
 
 def train(FLAGS, experiment_name='p4-0.9', seed=100):
     pl.seed_everything(seed)
@@ -87,7 +86,7 @@ def main(FLAGS: DictConfig):
     OmegaConf.set_struct(FLAGS, False)
     FLAGS.config_path = config_path
     for i in range(10):
-        seed = FLAGS.start_seed + i
+        seed = 69
         train(FLAGS, experiment_name= 'simpsons_linear', seed=seed)
 
 if __name__ == '__main__':

@@ -371,7 +371,6 @@ class DeepSurv(AbstractSurvivalTask):
     def on_fit_start(self):
         if self.bhs is None and self.return_risk:
             self.bhs = self.compute_bhs()
-            print(self.bhs.head())
 
     def baseline_hazards(self, dataset):
         if self.return_risk:
