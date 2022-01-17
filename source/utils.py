@@ -72,7 +72,7 @@ def create_correlated_var(x: np.ndarray,
                           r: float = 0.9,
                           empirical: bool = False):
     """
-    Creates a random normally distributed array with the specified correlati`on
+    Creates a random normally distributed array with the specified correlation
     :param x: existing array to correlate to
     :param rnorm_vector: random normal vector to transform the result to
     :param mu: desired mean of the returned array

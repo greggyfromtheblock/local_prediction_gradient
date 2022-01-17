@@ -35,6 +35,7 @@ assert os.environ['NEPTUNE_API_TOKEN'], 'No Neptune API Token found. Please do `
 config_path = "/home/ruyogagp/medical_interpretability/source/config"
 
 def train(FLAGS, seed):
+    print('!!!!!!!!!!!', FLAGS.experiment.datamodule_kwargs.csv_id, '!!!!!!!!!!')
     pl.seed_everything(seed)
     Task = eval(FLAGS.experiment.task)
     Module = eval(FLAGS.experiment.module)
@@ -54,7 +55,7 @@ def train(FLAGS, seed):
                 **FLAGS.experiment.task_kwargs)
 
     FLAGS.experiment.datamodule_kwargs.seed = seed
-    attribution_callback = FeatureAttribution(project='correlation',
+    attribution_callback = FeatureAttribution(project='resample_multiplicities',
                                               baseline_method='zeros',
                                               experiment_name=FLAGS.experiment.datamodule_kwargs.csv_id,
                                               seed=FLAGS.experiment.datamodule_kwargs.seed)
@@ -68,7 +69,7 @@ def train(FLAGS, seed):
                          callbacks=callbacks,
                          logger=wandb_logger)
 
-    wandb.init(project='test', group='correlation_case', config=FLAGS, tags=['correlation_case', FLAGS.experiment.datamodule_kwargs.csv_id])
+    wandb.init(project='test', group='correlation_case', config=FLAGS, tags=['resample_multiplicities', FLAGS.experiment.datamodule_kwargs.csv_id])
 
     # run
     trainer.fit(task, datamodule)
@@ -79,7 +80,7 @@ def train(FLAGS, seed):
 def main(FLAGS: DictConfig):
     OmegaConf.set_struct(FLAGS, False)
     FLAGS.config_path = config_path
-    seed = 200
+    seed = 150
     for i in range(50):
         seed += 1
         train(FLAGS, seed=seed)

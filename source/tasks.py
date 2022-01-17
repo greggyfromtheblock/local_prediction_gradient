@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import numpy as np
 
-
 from riskiano.losses.survival import cox_ph_loss
 from riskiano.datamodules.datasets import BatchedDS, DeepHitBatchedDS
 
