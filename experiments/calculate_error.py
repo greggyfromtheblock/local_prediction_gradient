@@ -139,6 +139,8 @@ def resampling_error(experiment_id, method):
     runs =  api.runs('cardiors/interpretability',
                      filters={"$and": [{'tags': f'{experiment_id}'}, {'tags': 'resample_multiplicities'}, {'state': 'finished'}]})
 
+    # For testing purpose
+    runs = [runs[0]]
     for run in runs:
         # load resampling dataframe and model
         xdf = pd.read_csv(f'/data/analysis/ag-reils/ag-reils-shared/cardioRS/data/interpretability/resample_multiplicities/{experiment_id}_resampling_x.csv', index_col=0)
@@ -179,30 +181,15 @@ def resampling_error(experiment_id, method):
             resamp_outputs = resamp_output if resamp_outputs is None else np.concatenate((resamp_outputs, resamp_output), axis=1)
 
         # calculate change slope
-        model_diff = np.subtract(orig_output, resamp_output)
+        model_diff = np.subtract(orig_output, resamp_outputs)
         resampling_diff = col2numpy(xdf, 'resampling_diff')
         change_slope = np.true_divide(model_diff, resampling_diff)
-
-        # norm change_slope & attributions
-        change_slope_norm = clip_norm2d(change_slope)
-        attr_x_norm = clip_norm1d(attr_x)
-
-        # calculate errors
-        sq_error, abs_error, rmse, mse, mae = get_errors(change_slope_norm, attr_x_norm)
-
-        print(sq_error.shape, rmse.shape, change_slope_norm.shape)
+        mean_cs = np.mean(change_slope, axis=1)
 
         xdf.loc[:, 'model_diff'] = model_diff.tolist()
         xdf.loc[:, 'change_slope'] = change_slope.tolist()
-        xdf.loc[:, 'change_slope_norm'] = change_slope_norm.tolist()
+        xdf.loc[:, 'mean_cs'] = mean_cs
         xdf.loc[:, 'attribution_x'] = attr_x
-        xdf.loc[:, 'attribution_norm_x'] = attr_x_norm.tolist()
-        xdf.loc[:, 'squared_error'] = sq_error.tolist()
-        xdf.loc[:, 'absolute_error'] = abs_error.tolist()
-        xdf.loc[:, 'MAE'] = mae
-        xdf.loc[:, 'MSE'] = mse
-        xdf.loc[:, 'RMSE'] = rmse
-
 
         # calculate change slope
         orig_output = model(orig_tensor_y)[0].detach().numpy()
@@ -210,38 +197,29 @@ def resampling_error(experiment_id, method):
         for i in range(resamp_vals.shape[1]):
             resamp_output = model(resamp_tensors_y[i])[0].detach().numpy()
             resamp_outputs = resamp_output if resamp_outputs is None else np.concatenate((resamp_outputs, resamp_output), axis=1)
-        model_diff = np.subtract(orig_output, resamp_output)
+
+        model_diff = np.subtract(orig_output, resamp_outputs)
         resampling_diff = col2numpy(ydf, 'resampling_diff')
         change_slope = np.true_divide(model_diff, resampling_diff)
-
-        # clip & norm change_slope + attribution values in dimension1
-        change_slope_norm = clip_norm2d(change_slope)
-        attr_y_norm = clip_norm1d(attr_y)
-
-        # calculate errors
-        sq_error, abs_error, rmse, mse, mae = get_errors(change_slope_norm, attr_y_norm)
-
-        print(sq_error.shape, rmse.shape, change_slope_norm.shape)
+        mean_cs = np.mean(change_slope, axis=1)
 
         ydf.loc[:, 'model_diff'] = model_diff.tolist()
         ydf.loc[:, 'change_slope'] = change_slope.tolist()
-        ydf.loc[:, 'change_slope_norm'] = change_slope_norm.tolist()
+        ydf.loc[:, 'mean_cs'] = mean_cs
         ydf.loc[:, 'attribution_y'] = attr_y
-        ydf.loc[:, 'attribution_y_norm'] = attr_y_norm.tolist()
-        ydf.loc[:, 'squared_error'] = sq_error.tolist()
-        ydf.loc[:, 'absolute_error'] = abs_error.tolist()
-        ydf.loc[:, 'MAE'] = mae
-        ydf.loc[:, 'MSE'] = mse
-        ydf.loc[:, 'RMSE'] = rmse
 
         # Save dataframes
         EVALUATION_DIR = '/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/resample_multiplicities/evaluation'
         if not os.path.exists(f'{EVALUATION_DIR}/{experiment_id}'):
             os.mkdir(f'{EVALUATION_DIR}/{experiment_id}')
 
+        if not os.path.exists(f'{EVALUATION_DIR}/{experiment_id}/change_slope'):
+            os.mkdir(f'{EVALUATION_DIR}/{experiment_id}/change_slope')
+
         seed = eval(run.config['_content']['experiment'])['datamodule_kwargs']['seed']
-        xdf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/x_{method}_{seed}.csv')
-        ydf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/y_{method}_{seed}.csv')
+        xdf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/x_{method}_{seed}.csv')
+        ydf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/y_{method}_{seed}.csv')
+        return xdf, ydf
 
 
 if __name__ == '__main__':
