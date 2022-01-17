@@ -56,12 +56,12 @@ class FeatureAttribution(Callback):
         x_loader = task.ext_dataloader(trainer.datamodule.attribute_x,
                                            batch_size=len(trainer.datamodule.attribute_x),
                                            num_workers=8,
-                                           shuffle=True,
+                                           shuffle=False,
                                            drop_last=False)
         y_loader = task.ext_dataloader(trainer.datamodule.attribute_y,
                                            batch_size=len(trainer.datamodule.attribute_y),
                                            num_workers=8,
-                                           shuffle=True,
+                                           shuffle=False,
                                            drop_last=False)
 
         # Unpack batch
@@ -70,12 +70,8 @@ class FeatureAttribution(Callback):
         t = torch.tensor([trainer.datamodule.eval_timepoint])
 
         if self.baseline_method == 'zeros':
-            baseline = torch.zeros(valid_data.shape[0], valid_data.shape[1])
-        elif self.baseline_method == 'ones':
-            baseline = torch.ones(valid_data.shape[0], valid_data.shape[1])
-        elif self.baseline_method == 'average':
-            average = torch.mean(valid_data)
-            baseline = torch.empty(valid_data.shape[0], valid_data.shape[1]).fill_(average)
+            baseline_x = torch.zeros(x_data.shape[0], x_data.shape[1])
+            baseline_y = torch.zeros(y_data.shape[0], y_data.shape[1])
 
         def perturb_fn(inputs):
             noise = torch.tensor(np.random.normal(0.001, 0.0001, inputs.shape)).float()
@@ -83,8 +79,11 @@ class FeatureAttribution(Callback):
 
         if self.project == 'correlation':
             outpath = "/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/correlation_case"
-        else:
+        elif self.project == 'simpsons':
             outpath ="/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/simpsons_case"
+        elif self.project == 'resample_multiplicities':
+            outpath ="/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/interpretability/resample_multiplicities"
+
 
         if not os.path.exists(f'{outpath}/{self.experiment_name}'):
             os.mkdir(f'{outpath}/{self.experiment_name}')
@@ -127,8 +126,8 @@ class FeatureAttribution(Callback):
         fa_attr_y = fa.attribute(y_data, additional_forward_args=t, baselines=baseline)
         np.savetxt(f'{outpath}/{self.experiment_name}/FeatureAblation_x_{self.seed}.csv', fa_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/FeatureAblation_y_{self.seed}.csv', fa_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(FeatureAblation_path=f'{outpath}/{self.experiment_name}/FeatureAblation_x_{self.seed}.csv'))
-        wandb.config.update(dict(FeatureAblation_path=f'{outpath}/{self.experiment_name}/FeatureAblation_y_{self.seed}.csv'))
+        wandb.config.update(dict(FeatureAblation_x_path=f'{outpath}/{self.experiment_name}/FeatureAblation_x_{self.seed}.csv'))
+        wandb.config.update(dict(FeatureAblation_y_path=f'{outpath}/{self.experiment_name}/FeatureAblation_y_{self.seed}.csv'))
 
         # Feature Permutation
         fp = FeaturePermutation(wrapped_model)
@@ -136,8 +135,8 @@ class FeatureAttribution(Callback):
         fp_attr_y = fp.attribute(y_data, additional_forward_args=t)
         np.savetxt(f'{outpath}/{self.experiment_name}/FeaturePermutation_x_{self.seed}.csv', fp_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/FeaturePermutation_y_{self.seed}.csv', fp_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(FeaturePermutation_path=f'{outpath}/{self.experiment_name}/FeaturePermutation_x_{self.seed}.csv'))
-        wandb.config.update(dict(FeaturePermutation_path=f'{outpath}/{self.experiment_name}/FeaturePermutation_y_{self.seed}.csv'))
+        wandb.config.update(dict(FeaturePermutation_x_path=f'{outpath}/{self.experiment_name}/FeaturePermutation_x_{self.seed}.csv'))
+        wandb.config.update(dict(FeaturePermutation_y_path=f'{outpath}/{self.experiment_name}/FeaturePermutation_y_{self.seed}.csv'))
 
         # Integrated Gradients
         ig = IntegratedGradients(wrapped_model)
@@ -155,8 +154,8 @@ class FeatureAttribution(Callback):
                                          return_convergence_delta=True)
         np.savetxt(f'{outpath}/{self.experiment_name}/IntegratedGradients_x_{self.seed}.csv', ig_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/IntegratedGradients_y_{self.seed}.csv', ig_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(IntegratedGradients_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_x_{self.seed}.csv'))
-        wandb.config.update(dict(IntegratedGradients_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_y_{self.seed}.csv'))
+        wandb.config.update(dict(IntegratedGradients_x_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_x_{self.seed}.csv'))
+        wandb.config.update(dict(IntegratedGradients_y_path=f'{outpath}/{self.experiment_name}/IntegratedGradients_y_{self.seed}.csv'))
 
         # Shapley Value Sampling
         svs = ShapleyValueSampling(wrapped_model)
@@ -164,8 +163,8 @@ class FeatureAttribution(Callback):
         svs_attr_y = svs.attribute(y_data, additional_forward_args=t, baselines=baseline)
         np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_x_{self.seed}.csv', svs_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/ShapleyValueSampling_y_{self.seed}.csv', svs_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(ShapleyValueSampling_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_x_{self.seed}.csv'))
-        wandb.config.update(dict(ShapleyValueSampling_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_y_{self.seed}.csv'))
+        wandb.config.update(dict(ShapleyValueSampling_x_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_x_{self.seed}.csv'))
+        wandb.config.update(dict(ShapleyValueSampling_y_path=f'{outpath}/{self.experiment_name}/ShapleyValueSampling_y_{self.seed}.csv'))
 
         # Input x Gradient
         ixg = InputXGradient(wrapped_model)
@@ -173,8 +172,8 @@ class FeatureAttribution(Callback):
         ixg_attr_y = ixg.attribute(y_data, additional_forward_args=t)
         np.savetxt(f'{outpath}/{self.experiment_name}/InputxGradient_x_{self.seed}.csv', ixg_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/InputxGradient_y_{self.seed}.csv', ixg_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(InputXGradient_path=f'{outpath}/{self.experiment_name}/InputxGradient_x_{self.seed}.csv'))
-        wandb.config.update(dict(InputXGradient_path=f'{outpath}/{self.experiment_name}/InputxGradient_y_{self.seed}.csv'))
+        wandb.config.update(dict(InputXGradient_x_path=f'{outpath}/{self.experiment_name}/InputxGradient_x_{self.seed}.csv'))
+        wandb.config.update(dict(InputXGradient_y_path=f'{outpath}/{self.experiment_name}/InputxGradient_y_{self.seed}.csv'))
 
         # Saliency
         s = Saliency(wrapped_model)
@@ -182,8 +181,8 @@ class FeatureAttribution(Callback):
         s_attr_y = s.attribute(y_data, additional_forward_args=t)
         np.savetxt(f'{outpath}/{self.experiment_name}/Saliency_x_{self.seed}.csv', s_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/Saliency_y_{self.seed}.csv', s_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(Saliency_path=f'{outpath}/{self.experiment_name}/Saliency_x_{self.seed}.csv'))
-        wandb.config.update(dict(Saliency_path=f'{outpath}/{self.experiment_name}/Saliency_y_{self.seed}.csv'))
+        wandb.config.update(dict(Saliency_x_path=f'{outpath}/{self.experiment_name}/Saliency_x_{self.seed}.csv'))
+        wandb.config.update(dict(Saliency_y_path=f'{outpath}/{self.experiment_name}/Saliency_y_{self.seed}.csv'))
 
         # Lime
         lime = Lime(wrapped_model,
@@ -196,6 +195,6 @@ class FeatureAttribution(Callback):
                                    additional_forward_args=t)
         np.savetxt(f'{outpath}/{self.experiment_name}/Lime_x_{self.seed}.csv', lime_attr_x.detach().numpy(), delimiter=',', fmt="%s")
         np.savetxt(f'{outpath}/{self.experiment_name}/Lime_y_{self.seed}.csv', lime_attr_y.detach().numpy(), delimiter=',', fmt="%s")
-        wandb.config.update(dict(Lime_path=f'{outpath}/{self.experiment_name}/Lime_x_{self.seed}.csv'))
-        wandb.config.update(dict(Lime_path=f'{outpath}/{self.experiment_name}/Lime_y_{self.seed}.csv'))
+        wandb.config.update(dict(Lime_x_path=f'{outpath}/{self.experiment_name}/Lime_x_{self.seed}.csv'))
+        wandb.config.update(dict(Lime_y_path=f'{outpath}/{self.experiment_name}/Lime_y_{self.seed}.csv'))
 
