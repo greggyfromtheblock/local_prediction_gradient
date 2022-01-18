@@ -139,8 +139,7 @@ def resampling_error(experiment_id, method):
     runs =  api.runs('cardiors/interpretability',
                      filters={"$and": [{'tags': f'{experiment_id}'}, {'tags': 'resample_multiplicities'}, {'state': 'finished'}]})
 
-    # For testing purpose
-    runs = [runs[0]]
+    print(len(runs))
     for run in runs:
         # load resampling dataframe and model
         xdf = pd.read_csv(f'/data/analysis/ag-reils/ag-reils-shared/cardioRS/data/interpretability/resample_multiplicities/{experiment_id}_resampling_x.csv', index_col=0)
@@ -216,10 +215,12 @@ def resampling_error(experiment_id, method):
         if not os.path.exists(f'{EVALUATION_DIR}/{experiment_id}/change_slope'):
             os.mkdir(f'{EVALUATION_DIR}/{experiment_id}/change_slope')
 
+        if not os.path.exists(f'{EVALUATION_DIR}/{experiment_id}/change_slope/{method}'):
+            os.mkdir(f'{EVALUATION_DIR}/{experiment_id}/change_slope/{method}')
+
         seed = eval(run.config['_content']['experiment'])['datamodule_kwargs']['seed']
-        xdf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/x_{method}_{seed}.csv')
-        ydf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/y_{method}_{seed}.csv')
-        return xdf, ydf
+        xdf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/{method}/x_{method}_{seed}.csv')
+        ydf.to_csv(f'{EVALUATION_DIR}/{experiment_id}/change_slope/{method}/y_{method}_{seed}.csv')
 
 
 if __name__ == '__main__':
