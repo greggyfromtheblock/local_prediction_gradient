@@ -55,7 +55,7 @@ def train(FLAGS, seed):
                 **FLAGS.experiment.task_kwargs)
 
     FLAGS.experiment.datamodule_kwargs.seed = seed
-    attribution_callback = FeatureAttribution(project='resample_multiplicities',
+    attribution_callback = FeatureAttribution(project='nonlinear',
                                               baseline_method='zeros',
                                               experiment_name=FLAGS.experiment.datamodule_kwargs.csv_id,
                                               seed=FLAGS.experiment.datamodule_kwargs.seed)
@@ -63,13 +63,14 @@ def train(FLAGS, seed):
 
     # initialize trainer
     callbacks = get_default_callbacks(monitor=FLAGS.experiment.monitor) + [WriteCheckpointLogs(), attribution_callback]
-    wandb_logger = WandbLogger(project="cardiors/interpretability", tags=['correlation_case', FLAGS.experiment.datamodule_kwargs.csv_id])
+    wandb_logger = WandbLogger(project="cardiors/interpretability", tags=['nonlinear', 'resample_multiplicities']) # FLAGS.experiment.datamodule_kwargs.csv_id
+
 
     trainer = pl.Trainer(**FLAGS.trainer,
                          callbacks=callbacks,
                          logger=wandb_logger)
 
-    wandb.init(project='test', group='correlation_case', config=FLAGS, tags=['resample_multiplicities', FLAGS.experiment.datamodule_kwargs.csv_id])
+    wandb.init(project='interpretability', group='correlation_case', config=FLAGS, tags=['nonlinear', 'resample_multiplicities']) # FLAGS.experiment.datamodule_kwargs.csv_id
 
     # run
     trainer.fit(task, datamodule)
@@ -80,9 +81,9 @@ def train(FLAGS, seed):
 def main(FLAGS: DictConfig):
     OmegaConf.set_struct(FLAGS, False)
     FLAGS.config_path = config_path
-    seed = 150
-    for i in range(50):
-        seed += 1
+    seed = 100
+    for i in range(40):
+        seed += i
         train(FLAGS, seed=seed)
 
 if __name__ == '__main__':
