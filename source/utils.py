@@ -66,7 +66,6 @@ def sample_from_population(n:int = 100, mu: float = 0, sd: float = 1, r: float =
 
 
 def create_correlated_var(x: np.ndarray,
-                          rnorm_vector: np.ndarray,
                           mu: float = 0.0,
                           sd: float = 1.0,
                           r: float = 0.9,
@@ -81,6 +80,7 @@ def create_correlated_var(x: np.ndarray,
     :param empirical: if true, mu, sd, and r specify the empirical not the population mean
     """
     n = len(x)
+    rnorm_vector = np.random.normal(size=x.shape)
     if not empirical:
         sample_params=sample_from_population(n, mu, sd, r)
         mu = sample_params['mu']
