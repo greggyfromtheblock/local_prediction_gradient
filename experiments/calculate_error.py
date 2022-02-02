@@ -184,10 +184,12 @@ def resampling_error(experiment_id, method):
         resampling_diff = col2numpy(xdf, 'resampling_diff')
         change_slope = np.true_divide(model_diff, resampling_diff)
         mean_cs = np.mean(change_slope, axis=1)
+        median_cs = np.median(change_slope, axis=1)
 
         xdf.loc[:, 'model_diff'] = model_diff.tolist()
         xdf.loc[:, 'change_slope'] = change_slope.tolist()
         xdf.loc[:, 'mean_cs'] = mean_cs
+        xdf.loc[:, 'median_cs'] = median_cs
         xdf.loc[:, 'attribution_x'] = attr_x
 
         # calculate change slope
@@ -201,10 +203,12 @@ def resampling_error(experiment_id, method):
         resampling_diff = col2numpy(ydf, 'resampling_diff')
         change_slope = np.true_divide(model_diff, resampling_diff)
         mean_cs = np.mean(change_slope, axis=1)
+        median_cs = np.median(change_slope, axis=1)
 
         ydf.loc[:, 'model_diff'] = model_diff.tolist()
         ydf.loc[:, 'change_slope'] = change_slope.tolist()
         ydf.loc[:, 'mean_cs'] = mean_cs
+        ydf.loc[:, 'median_cs'] = median_cs
         ydf.loc[:, 'attribution_y'] = attr_y
 
         # Save dataframes
@@ -225,6 +229,6 @@ def resampling_error(experiment_id, method):
 
 if __name__ == '__main__':
     method = sys.argv[1]
-    experiment_ids = ['p0.00', 'p0.25', 'p0.5', 'p0.75']
+    experiment_ids = ['simpsons', 'p0.00', 'p0.25', 'p0.5', 'p0.75']
     for experiment_id in experiment_ids:
         resampling_error(experiment_id, method)
