@@ -132,4 +132,4 @@ dmypy.json
 /medical_interpretability/.idea/workspace.xml
 
 # pycharm tings
-.idea/
+*/.idea/
