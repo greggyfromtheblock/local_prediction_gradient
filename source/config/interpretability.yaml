@@ -1,0 +1,41 @@
+neptune:
+  project: "CardioRS/Interpretability"
+  tags: ['testing', 'correlation_case']
+trainer:
+  default_root_dir: "/data/analysis/ag-reils/ag-reils-shared/cardioRS/results/models"
+  gpus: -1
+  val_check_interval: 1.0
+  fast_dev_run: False
+  max_epochs: 20
+  auto_lr_find: False
+experiment_id: 'lognormal_cc_3'
+project: 'interpretability'
+experiment:
+  task: DeepSurv
+  module: MLP
+  monitor: "valid_Ctd_0.9"
+  evaluation_quantile_bins: [0.9]
+  evaluation_time_points: None
+  datamodule_kwargs:
+    seed: 9999
+    dirpath: '/data/analysis/ag-reils/ag-reils-shared/cardioRS/data/interpretability/resample_multiplicities/'
+    batch_size: 256
+  task_kwargs:
+    evaluation_quantile_bins: [ 0.9 ]
+    evaluation_time_points: None
+    output_dim: 1
+    batch_size: 256
+    num_workers: 8
+    lr: 0.005
+    optimizer: torch.optim.Adam
+  module_kwargs:
+    hidden_dims: [ 64, 64, 64, 64]
+    norm_layer: [ 0, 1 ]
+    output_dim: ${experiment.task_kwargs.output_dim}
+    dropout: 0.1
+    activation_fn: nn.SiLU
+    final_activation: nn.SiLU
+  experiment_kwargs:
+    seed: 0
+    n: 0
+    experiment_name: 'test'

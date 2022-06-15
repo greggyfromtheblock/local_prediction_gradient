@@ -87,7 +87,7 @@ def main(FLAGS: DictConfig):
     FLAGS.config_path = config_path
     for i in range(10):
         seed = 69
-        train(FLAGS, experiment_name= 'simpsons_linear', seed=seed)
+        train(FLAGS, experiment_name= 'hr_l', seed=seed)
 
 if __name__ == '__main__':
     main()

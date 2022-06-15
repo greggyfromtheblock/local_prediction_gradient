@@ -1,5 +1,4 @@
-print('helloooo')
-
+print('this is the correct script :)')
 import os
 import hydra
 import torch
@@ -35,14 +34,13 @@ assert os.environ['NEPTUNE_API_TOKEN'], 'No Neptune API Token found. Please do `
 config_path = "/home/ruyogagp/medical_interpretability/source/config"
 
 def train(FLAGS, seed):
-    print('!!!!!!!!!!!', FLAGS.experiment.datamodule_kwargs.csv_id, '!!!!!!!!!!')
     pl.seed_everything(seed)
     Task = eval(FLAGS.experiment.task)
     Module = eval(FLAGS.experiment.module)
-    DataModule = eval(FLAGS.experiment.datamodule)
+    experiment_id = FLAGS.experiment_id
 
     ### initialize datamodule
-    datamodule = DataModule(**FLAGS.experiment.datamodule_kwargs)
+    datamodule = SyntheticDatamodule(csv_id=experiment_id, **FLAGS.experiment.datamodule_kwargs)
     datamodule.prepare_data()
     datamodule.setup("fit")
 
@@ -55,35 +53,34 @@ def train(FLAGS, seed):
                 **FLAGS.experiment.task_kwargs)
 
     FLAGS.experiment.datamodule_kwargs.seed = seed
-    attribution_callback = FeatureAttribution(project='nonlinear',
+    attribution_callback = FeatureAttribution(project=experiment_id,
                                               baseline_method='zeros',
-                                              experiment_name=FLAGS.experiment.datamodule_kwargs.csv_id,
+                                              experiment_name=experiment_id,
                                               seed=FLAGS.experiment.datamodule_kwargs.seed)
 
 
     # initialize trainer
     callbacks = get_default_callbacks(monitor=FLAGS.experiment.monitor) + [WriteCheckpointLogs(), attribution_callback]
-    wandb_logger = WandbLogger(project="cardiors/interpretability", tags=['nonlinear', 'resample_multiplicities']) # FLAGS.experiment.datamodule_kwargs.csv_id
-
+    wandb_logger = WandbLogger(project=FLAGS.project, tags=[experiment_id, 'resample_multiplicities'],
+                               settings=wandb.Settings(start_method='fork')) # FLAGS.experiment.datamodule_kwargs.csv_id
 
     trainer = pl.Trainer(**FLAGS.trainer,
                          callbacks=callbacks,
                          logger=wandb_logger)
 
-    wandb.init(project='interpretability', group='correlation_case', config=FLAGS, tags=['nonlinear', 'resample_multiplicities']) # FLAGS.experiment.datamodule_kwargs.csv_id
 
     # run
     trainer.fit(task, datamodule)
-    trainer.logger.experiment.finish()
+    wandb.finish()
 
 
 @hydra.main(config_path, config_name="interpretability")
 def main(FLAGS: DictConfig):
     OmegaConf.set_struct(FLAGS, False)
     FLAGS.config_path = config_path
-    seed = 100
-    for i in range(40):
-        seed += i
+    start_seed = 200
+    for i in range(50):
+        seed = start_seed + i
         train(FLAGS, seed=seed)
 
 if __name__ == '__main__':

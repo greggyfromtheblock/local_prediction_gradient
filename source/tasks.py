@@ -390,7 +390,6 @@ class DeepSurv(AbstractSurvivalTask):
         Predict a sample
         :return:
         """
-        tens = torch.Tensor(2, 3)
         log_ph = self.net(X.to(self.device))
         return log_ph, log_ph, log_ph # to fit the general interface of this method
 

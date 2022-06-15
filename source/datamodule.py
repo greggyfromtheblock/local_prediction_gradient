@@ -41,16 +41,46 @@ class SyntheticDatamodule(pl.LightningDataModule):
                                          datatransform=self.datatransform)
         self.valid_ds = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='valid', labeltransform=None,
                                          datatransform=self.train_ds.datatransform)
-        self.attribute_feature0 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature0', labeltransform=None,
-                                             datatransform=self.train_ds.datatransform)
-        self.attribute_feature1 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature1', labeltransform=None,
-                                                   datatransform=self.train_ds.datatransform)
-        self.attribute_feature2 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature2', labeltransform=None,
-                                                   datatransform=self.train_ds.datatransform)
-        self.attribute_feature3 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature3', labeltransform=None,
-                                                   datatransform=self.train_ds.datatransform)
-        self.attribute_feature4 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature4', labeltransform=None,
-                                                   datatransform=self.train_ds.datatransform)
+
+        if self.n_features == 6:
+            self.attribute_feature0 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature0', labeltransform=None,
+                                                 datatransform=self.train_ds.datatransform)
+            self.attribute_feature1 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature1', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature2 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature2', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature3 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature3', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature4 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature4', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature5 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature5', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+        elif self.n_features == 5:
+            self.attribute_feature0 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature0', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature1 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature1', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature2 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature2', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature3 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature3', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature4 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature4', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+        elif self.n_features == 4:
+            self.attribute_feature0 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature0', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature1 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature1', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature2 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature2', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature3 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature3', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+        elif self.n_features == 2:
+            self.attribute_feature0 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature0', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+            self.attribute_feature1 = SyntheticDataset(name=self.csv_id, path=self.dirpath, mode='attribute_feature1', labeltransform=None,
+                                                       datatransform=self.train_ds.datatransform)
+
 
     def train_dataloader(self):
         return DataLoader(BatchedDS(self.train_ds, batch_size=self.batch_size),
