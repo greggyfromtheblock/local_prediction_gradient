@@ -130,3 +130,6 @@ dmypy.json
 /medical_interpretability/.idea/medical_interpretability.iml
 /medical_interpretability/.idea/modules.xml
 /medical_interpretability/.idea/workspace.xml
+
+# pycharm tings
+.idea/
